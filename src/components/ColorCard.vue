@@ -10,24 +10,14 @@
             hsl({{ hsl.h }}, {{ hsl.s }}%, {{ hsl.l }}%)
           </p>
         </div>
-        <div class="flex gap-1 shrink-0">
-          <button
-            type="button"
-            class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 dark:hover:text-indigo-400 transition-colors"
-            :aria-label="`Copy ${hex}`"
-            @click="copy"
-          >
-            <span class="text-xs">{{ copied ? '✓' : '⧉' }}</span>
-          </button>
-          <button
-            type="button"
-            class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 dark:hover:text-red-400 transition-colors"
-            aria-label="Remove color"
-            @click="$emit('remove')"
-          >
-            <span class="text-xs">✕</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 dark:hover:text-indigo-400 transition-colors"
+          :aria-label="`Copy ${hex}`"
+          @click="copy"
+        >
+          <span class="text-xs">{{ copied ? '✓' : '⧉' }}</span>
+        </button>
       </div>
 
       <RgbChart :r="rgb.r" :g="rgb.g" :b="rgb.b" />
@@ -41,7 +31,6 @@ import { hexToRgb, rgbToHsl } from '../lib/color'
 import RgbChart from './RgbChart.vue'
 
 const props = defineProps<{ hex: string }>()
-defineEmits<{ remove: [] }>()
 
 const rgb = computed(() => hexToRgb(props.hex))
 const hsl = computed(() => rgbToHsl(rgb.value))

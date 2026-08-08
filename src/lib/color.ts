@@ -70,6 +70,70 @@ export function randomHex(): string {
   return `#${value.toString(16).padStart(6, '0')}`
 }
 
+function hslToRgb({ h, s, l }: Hsl): Rgb {
+  const hn = ((h % 360) + 360) % 360
+  const sn = Math.min(100, Math.max(0, s)) / 100
+  const ln = Math.min(100, Math.max(0, l)) / 100
+
+  const c = (1 - Math.abs(2 * ln - 1)) * sn
+  const x = c * (1 - Math.abs(((hn / 60) % 2) - 1))
+  const m = ln - c / 2
+
+  let [r, g, b] = [0, 0, 0]
+  if (hn < 60) [r, g, b] = [c, x, 0]
+  else if (hn < 120) [r, g, b] = [x, c, 0]
+  else if (hn < 180) [r, g, b] = [0, c, x]
+  else if (hn < 240) [r, g, b] = [0, x, c]
+  else if (hn < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  }
+}
+
+function rgbToHex({ r, g, b }: Rgb): string {
+  const toHex = (n: number) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, '0')
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+export function hslToHex(hsl: Hsl): string {
+  return rgbToHex(hslToRgb(hsl))
+}
+
+/** Rotate a hex color's hue by the given degrees, keeping its saturation/lightness. */
+function rotateHue(hex: string, degrees: number): string {
+  const hsl = rgbToHsl(hexToRgb(hex))
+  return hslToHex({ ...hsl, h: hsl.h + degrees })
+}
+
+export interface HarmonySet {
+  complementary: string[]
+  analogous: string[]
+  triadic: string[]
+  splitComplementary: string[]
+  monochromatic: string[]
+}
+
+const MONOCHROMATIC_LIGHTNESS_STEPS = [25, 40, 65, 80]
+
+/** Standard color-theory accent recommendations derived from a single primary color. */
+export function generateHarmony(primaryHex: string): HarmonySet {
+  const primaryHsl = rgbToHsl(hexToRgb(primaryHex))
+
+  return {
+    complementary: [rotateHue(primaryHex, 180)],
+    analogous: [rotateHue(primaryHex, -30), rotateHue(primaryHex, 30)],
+    triadic: [rotateHue(primaryHex, 120), rotateHue(primaryHex, 240)],
+    splitComplementary: [rotateHue(primaryHex, 150), rotateHue(primaryHex, 210)],
+    monochromatic: MONOCHROMATIC_LIGHTNESS_STEPS
+      .filter(l => Math.abs(l - primaryHsl.l) > 5)
+      .map(l => hslToHex({ ...primaryHsl, l })),
+  }
+}
+
 export function relativeLuminance({ r, g, b }: Rgb): number {
   const toLinear = (channel: number) => {
     const c = channel / 255

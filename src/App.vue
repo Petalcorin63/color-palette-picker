@@ -7,22 +7,22 @@
         </p>
         <h1 class="text-4xl md:text-5xl font-extrabold mb-4">Color Palette Picker</h1>
         <p class="text-gray-500 dark:text-gray-400 max-w-lg mx-auto">
-          Build a palette and read the exact RGB values behind every swatch.
+          Pick a primary color and get secondary/accent recommendations from
+          color theory, each with its exact RGB values as reference.
         </p>
       </header>
 
-      <!-- Controls -->
-      <div class="flex flex-wrap items-center justify-center gap-3 mb-12">
+      <!-- Primary color controls -->
+      <div class="flex flex-wrap items-center justify-center gap-3 mb-8">
         <label
           class="relative w-11 h-11 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 cursor-pointer shrink-0"
-          :style="{ backgroundColor: pickerHex }"
+          :style="{ backgroundColor: primaryHex }"
         >
           <input
-            v-model="pickerHex"
+            v-model="primaryHex"
             type="color"
             class="absolute -inset-2 cursor-pointer opacity-0"
-            aria-label="Pick a color"
-            @change="hexInput = pickerHex"
+            aria-label="Pick a primary color"
           >
         </label>
 
@@ -33,88 +33,103 @@
           maxlength="7"
           class="w-32 px-4 py-2.5 rounded-full bg-gray-50 dark:bg-gray-900 border text-sm font-mono text-center transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           :class="hexInput && !isValidHex(hexInput) ? 'border-red-400' : 'border-gray-200 dark:border-gray-700'"
-          @keyup.enter="addFromInput"
+          @keyup.enter="applyHexInput"
+          @blur="applyHexInput"
         >
-
-        <button
-          type="button"
-          class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-sm font-semibold transition-all"
-          :disabled="!hexInput || !isValidHex(hexInput)"
-          @click="addFromInput"
-        >
-          Add
-        </button>
 
         <button
           type="button"
           class="px-5 py-2.5 border-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-500 dark:hover:border-indigo-500 rounded-full text-sm font-semibold transition-all"
-          @click="addRandom"
+          @click="randomizePrimary"
         >
           Random
         </button>
-
-        <button
-          v-if="palette.length"
-          type="button"
-          class="px-5 py-2.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full text-sm font-semibold transition-colors"
-          @click="palette = []"
-        >
-          Clear all
-        </button>
       </div>
 
-      <!-- Empty state -->
-      <div
-        v-if="!palette.length"
-        class="text-center py-16 text-gray-400 dark:text-gray-600"
+      <!-- Primary color -->
+      <section class="mb-12 max-w-xs mx-auto">
+        <p class="text-center text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
+          Primary
+        </p>
+        <ColorCard :hex="primaryHex" />
+      </section>
+
+      <!-- Harmony recommendations -->
+      <section
+        v-for="scheme in harmonySchemes"
+        :key="scheme.key"
+        class="mb-12"
       >
-        <p class="text-sm">No colors yet — pick one above or hit "Random" to get started.</p>
-      </div>
-
-      <!-- Palette grid -->
-      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        <PaletteCard
-          v-for="entry in palette"
-          :key="entry.id"
-          :hex="entry.hex"
-          @remove="removeColor(entry.id)"
-        />
-      </div>
+        <div class="text-center mb-5">
+          <h2 class="text-lg font-bold text-gray-900 dark:text-white">{{ scheme.title }}</h2>
+          <p class="text-sm text-gray-400">{{ scheme.description }}</p>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+          <ColorCard
+            v-for="hex in scheme.colors"
+            :key="hex"
+            :hex="hex"
+          />
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import PaletteCard from './components/PaletteCard.vue'
-import { isValidHex, normalizeHex, randomHex } from './lib/color'
+import { computed, ref } from 'vue'
+import ColorCard from './components/ColorCard.vue'
+import { generateHarmony, isValidHex, normalizeHex, randomHex } from './lib/color'
 
-interface PaletteEntry {
-  id: number
-  hex: string
+const primaryHex = ref('#6366f1')
+const hexInput = ref(primaryHex.value)
+
+function applyHexInput() {
+  if (!hexInput.value || !isValidHex(hexInput.value)) {
+    hexInput.value = primaryHex.value
+    return
+  }
+  primaryHex.value = normalizeHex(hexInput.value)
+  hexInput.value = primaryHex.value
 }
 
-let nextId = 0
-const palette = ref<PaletteEntry[]>([])
-
-const pickerHex = ref('#6366f1')
-const hexInput = ref('')
-
-function addColor(hex: string) {
-  palette.value.push({ id: nextId++, hex: normalizeHex(hex) })
+function randomizePrimary() {
+  primaryHex.value = randomHex()
+  hexInput.value = primaryHex.value
 }
 
-function addFromInput() {
-  if (!hexInput.value || !isValidHex(hexInput.value)) return
-  addColor(hexInput.value)
-  hexInput.value = ''
-}
+const harmony = computed(() => generateHarmony(primaryHex.value))
 
-function addRandom() {
-  addColor(randomHex())
-}
-
-function removeColor(id: number) {
-  palette.value = palette.value.filter(entry => entry.id !== id)
-}
+const harmonySchemes = computed(() => [
+  {
+    key: 'complementary',
+    title: 'Complementary',
+    description: 'Opposite hue (+180°) — high contrast, use sparingly as an accent.',
+    colors: harmony.value.complementary,
+  },
+  {
+    key: 'analogous',
+    title: 'Analogous',
+    description: 'Neighboring hues (±30°) — calm, cohesive palettes.',
+    colors: harmony.value.analogous,
+  },
+  {
+    key: 'triadic',
+    title: 'Triadic',
+    description: 'Evenly spaced hues (±120°) — vibrant, balanced contrast.',
+    colors: harmony.value.triadic,
+  },
+  {
+    key: 'splitComplementary',
+    title: 'Split-Complementary',
+    description: 'Complement’s neighbors (±150°/±210°) — contrast with less tension.',
+    colors: harmony.value.splitComplementary,
+  },
+  {
+    key: 'monochromatic',
+    title: 'Monochromatic',
+    description: 'Same hue, varied lightness — safe tints/shades for UI states.',
+    colors: harmony.value.monochromatic,
+  },
+])
 </script>
