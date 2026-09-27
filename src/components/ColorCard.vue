@@ -7,14 +7,14 @@
         <div>
           <p class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ hex }}</p>
           <p class="font-mono text-xs text-gray-400 mt-0.5">
-            hsl({{ hsl.h }}, {{ hsl.s }}%, {{ hsl.l }}%)
+            {{ oklch }}
           </p>
         </div>
         <button
           type="button"
           class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 dark:hover:text-indigo-400 transition-colors"
           :aria-label="`Copy ${hex}`"
-          @click="copy"
+          @click="copy(hex)"
         >
           <span class="text-xs">{{ copied ? '✓' : '⧉' }}</span>
         </button>
@@ -26,19 +26,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { hexToRgb, rgbToHsl } from '../lib/color'
+import { computed } from 'vue'
+import { useClipboardCopy } from '../composables/useClipboardCopy'
+import { formatOklch, hexToRgb, rgbToOklch } from '../lib/color'
 import RgbChart from './RgbChart.vue'
 
 const props = defineProps<{ hex: string }>()
 
 const rgb = computed(() => hexToRgb(props.hex))
-const hsl = computed(() => rgbToHsl(rgb.value))
+const oklch = computed(() => formatOklch(rgbToOklch(rgb.value)))
 
-const copied = ref(false)
-async function copy() {
-  await navigator.clipboard.writeText(props.hex)
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 1200)
-}
+const { copied, copy } = useClipboardCopy()
 </script>

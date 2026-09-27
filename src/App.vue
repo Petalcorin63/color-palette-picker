@@ -44,6 +44,8 @@
         >
           Random
         </button>
+
+        <ExportPalette :primary-hex="primaryHex" :harmony="harmony" />
       </div>
 
       <!-- Primary color -->
@@ -77,59 +79,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import ColorCard from './components/ColorCard.vue'
-import { generateHarmony, isValidHex, normalizeHex, randomHex } from './lib/color'
+import ExportPalette from './components/ExportPalette.vue'
+import { usePaletteBuilder } from './composables/usePaletteBuilder'
+import { isValidHex } from './lib/color'
 
-const primaryHex = ref('#6366f1')
-const hexInput = ref(primaryHex.value)
-
-function applyHexInput() {
-  if (!hexInput.value || !isValidHex(hexInput.value)) {
-    hexInput.value = primaryHex.value
-    return
-  }
-  primaryHex.value = normalizeHex(hexInput.value)
-  hexInput.value = primaryHex.value
-}
-
-function randomizePrimary() {
-  primaryHex.value = randomHex()
-  hexInput.value = primaryHex.value
-}
-
-const harmony = computed(() => generateHarmony(primaryHex.value))
-
-const harmonySchemes = computed(() => [
-  {
-    key: 'complementary',
-    title: 'Complementary',
-    description: 'Opposite hue (+180°) — high contrast, use sparingly as an accent.',
-    colors: harmony.value.complementary,
-  },
-  {
-    key: 'analogous',
-    title: 'Analogous',
-    description: 'Neighboring hues (±30°) — calm, cohesive palettes.',
-    colors: harmony.value.analogous,
-  },
-  {
-    key: 'triadic',
-    title: 'Triadic',
-    description: 'Evenly spaced hues (±120°) — vibrant, balanced contrast.',
-    colors: harmony.value.triadic,
-  },
-  {
-    key: 'splitComplementary',
-    title: 'Split-Complementary',
-    description: 'Complement’s neighbors (±150°/±210°) — contrast with less tension.',
-    colors: harmony.value.splitComplementary,
-  },
-  {
-    key: 'monochromatic',
-    title: 'Monochromatic',
-    description: 'Same hue, varied lightness — safe tints/shades for UI states.',
-    colors: harmony.value.monochromatic,
-  },
-])
+const { primaryHex, hexInput, harmony, harmonySchemes, applyHexInput, randomizePrimary } = usePaletteBuilder()
 </script>

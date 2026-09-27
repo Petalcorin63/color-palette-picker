@@ -10,6 +10,12 @@ export interface Hsl {
   l: number
 }
 
+export interface Oklch {
+  l: number
+  c: number
+  h: number
+}
+
 const HEX_RE = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i
 
 export function isValidHex(value: string): boolean {
@@ -103,6 +109,47 @@ export function hslToHex(hsl: Hsl): string {
   return rgbToHex(hslToRgb(hsl))
 }
 
+/** sRGB -> OKLCH, via Björn Ottosson's OKLab formulas (linearize -> LMS -> OKLab -> polar). */
+export function rgbToOklch({ r, g, b }: Rgb): Oklch {
+  const toLinear = (channel: number) => {
+    const c = channel / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const lr = toLinear(r)
+  const lg = toLinear(g)
+  const lb = toLinear(b)
+
+  const l_ = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)
+  const m_ = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)
+  const s_ = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)
+
+  const L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+  const a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+  const b2 = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+
+  const c = Math.sqrt(a * a + b2 * b2)
+  let h = Math.atan2(b2, a) * (180 / Math.PI)
+  if (h < 0) h += 360
+
+  return { l: L * 100, c, h }
+}
+
+/**
+ * CSS `oklch()` function notation, e.g. `oklch(58.5% 0.233 264.05)`. Hue is
+ * numerically unstable at zero chroma (grays/black/white) — floating-point
+ * error in the OKLab matrix produces an arbitrary-looking non-zero hue for
+ * what is actually a "powerless" component, so it's rendered as the CSS
+ * Color 4 `none` keyword instead of a misleading number.
+ */
+export function formatOklch({ l, c, h }: Oklch): string {
+  const hue = c < 0.0005 ? 'none' : h.toFixed(2)
+  return `oklch(${l.toFixed(1)}% ${c.toFixed(3)} ${hue})`
+}
+
+export function hexToOklchString(hex: string): string {
+  return formatOklch(rgbToOklch(hexToRgb(hex)))
+}
+
 /** Rotate a hex color's hue by the given degrees, keeping its saturation/lightness. */
 function rotateHue(hex: string, degrees: number): string {
   const hsl = rgbToHsl(hexToRgb(hex))
@@ -119,19 +166,53 @@ export interface HarmonySet {
 
 const MONOCHROMATIC_LIGHTNESS_STEPS = [25, 40, 65, 80]
 
-/** Standard color-theory accent recommendations derived from a single primary color. */
+// Below this saturation, hue is effectively undefined (rotating it changes
+// nothing — hslToRgb collapses to the same gray regardless of h), so every
+// hue-based scheme would just repeat the primary color. Same 5-point
+// tolerance already used for the monochromatic-vs-primary lightness gap.
+const ACHROMATIC_SATURATION_THRESHOLD = 5
+
+/**
+ * Standard color-theory accent recommendations derived from a single primary
+ * color. For a (near-)achromatic primary, the hue-rotation schemes
+ * (complementary/analogous/triadic/split-complementary) are meaningless —
+ * they'd all just repeat the primary's own gray — so they're omitted
+ * entirely rather than shown as redundant duplicate swatches; only
+ * `monochromatic` (varying lightness) still applies to a gray.
+ */
 export function generateHarmony(primaryHex: string): HarmonySet {
   const primaryHsl = rgbToHsl(hexToRgb(primaryHex))
+  const isAchromatic = primaryHsl.s <= ACHROMATIC_SATURATION_THRESHOLD
 
   return {
-    complementary: [rotateHue(primaryHex, 180)],
-    analogous: [rotateHue(primaryHex, -30), rotateHue(primaryHex, 30)],
-    triadic: [rotateHue(primaryHex, 120), rotateHue(primaryHex, 240)],
-    splitComplementary: [rotateHue(primaryHex, 150), rotateHue(primaryHex, 210)],
-    monochromatic: MONOCHROMATIC_LIGHTNESS_STEPS
-      .filter(l => Math.abs(l - primaryHsl.l) > 5)
-      .map(l => hslToHex({ ...primaryHsl, l })),
+    complementary: isAchromatic ? [] : [rotateHue(primaryHex, 180)],
+    analogous: isAchromatic ? [] : [rotateHue(primaryHex, -30), rotateHue(primaryHex, 30)],
+    triadic: isAchromatic ? [] : [rotateHue(primaryHex, 120), rotateHue(primaryHex, 240)],
+    splitComplementary: isAchromatic ? [] : [rotateHue(primaryHex, 150), rotateHue(primaryHex, 210)],
+    // Distinct lightness steps can still round to the same hex (e.g. a
+    // desaturated primary); drop repeats so no two monochromatic swatches
+    // ever show/export the same color.
+    monochromatic: [...new Set(
+      MONOCHROMATIC_LIGHTNESS_STEPS
+        .filter(l => Math.abs(l - primaryHsl.l) > 5)
+        .map(l => hslToHex({ ...primaryHsl, l })),
+    )],
   }
+}
+
+const DARK_MODE_LIGHTEN_FACTOR = 0.35
+
+/**
+ * Dark-mode counterpart of a color: pushes lightness toward white, scaled by
+ * how dark the color already is (a near-black tone gains the most contrast
+ * against a dark background; an already-light tone barely changes). Hue and
+ * saturation are kept, and the transform is monotonic in L so relative
+ * ordering within a ramp (e.g. monochromatic steps) is preserved.
+ */
+export function darkModeVariant(hex: string): string {
+  const hsl = rgbToHsl(hexToRgb(hex))
+  const l = hsl.l + (100 - hsl.l) * DARK_MODE_LIGHTEN_FACTOR
+  return hslToHex({ ...hsl, l: Math.round(l) })
 }
 
 export function relativeLuminance({ r, g, b }: Rgb): number {
